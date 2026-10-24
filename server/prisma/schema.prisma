@@ -1,0 +1,422 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum ExperienceLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum Availability {
+  AVAILABLE
+  LIMITED
+  UNAVAILABLE
+}
+
+enum CollaborationType {
+  HACKATHON
+  LEARNING
+  OPEN_SOURCE
+  STARTUP
+  PERSONAL_PROJECT
+  FREELANCE_COLLABORATION
+}
+
+enum ProfileVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum SkillProficiency {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum ProjectCategory {
+  WEB_DEVELOPMENT
+  MOBILE_DEVELOPMENT
+  AI_ML
+  DATA_SCIENCE
+  DEVTOOLS
+  GAME_DEVELOPMENT
+  CYBERSECURITY
+  OPEN_SOURCE
+  OTHER
+}
+
+enum ProjectVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum RecruitmentStatus {
+  DRAFT
+  RECRUITING
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+}
+
+enum ProjectRole {
+  OWNER
+  MEMBER
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+  BLOCKED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum MilestoneStatus {
+  UPCOMING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
+}
+
+model User {
+  id              String            @id @default(uuid())
+  email           String            @unique
+  username        String            @unique
+  passwordHash    String
+  role            Role              @default(USER)
+  isSuspended     Boolean           @default(false)
+  suspendedReason String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  profile         DeveloperProfile?
+  sessions        Session[]
+  skills          UserSkill[]
+  ownedProjects   Project[]         @relation("ProjectOwner")
+  memberships     ProjectMembership[]
+  applications    JoinRequest[]     @relation("UserApplications")
+  bookmarks       Bookmark[]
+  assignedTasks   Task[]            @relation("TaskAssignee")
+  createdTasks    Task[]            @relation("TaskCreator")
+  createdMilestones Milestone[]     @relation("MilestoneCreator")
+  messages        DiscussionMessage[]
+  activities      ActivityLog[]     @relation("UserActivities")
+  reportsFiled    Report[]          @relation("UserReports")
+  auditLogs       AdminAuditLog[]   @relation("AdminLogs")
+
+  @@index([email])
+  @@index([username])
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+}
+
+model DeveloperProfile {
+  id                String            @id @default(uuid())
+  userId            String            @unique
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName       String
+  headline          String?
+  bio               String?
+  avatarUrl         String?
+  location          String?
+  experienceLevel   ExperienceLevel   @default(BEGINNER)
+  availability      Availability      @default(AVAILABLE)
+  weeklyHours       Int?              @default(10)
+  timezone          String?
+  collaborationType CollaborationType @default(PERSONAL_PROJECT)
+  areasOfInterest   String[]          @default([])
+  githubUrl         String?
+  linkedinUrl       String?
+  portfolioUrl      String?
+  visibility        ProfileVisibility @default(PUBLIC)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([userId])
+  @@index([visibility])
+  @@index([experienceLevel])
+  @@index([availability])
+}
+
+model Skill {
+  id            String         @id @default(uuid())
+  name          String         @unique
+  category      String?
+  createdAt     DateTime       @default(now())
+
+  userSkills    UserSkill[]
+  projectSkills ProjectSkill[]
+
+  @@index([name])
+}
+
+model UserSkill {
+  id                String           @id @default(uuid())
+  userId            String
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillId           String
+  skill             Skill            @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  proficiency       SkillProficiency @default(INTERMEDIATE)
+  yearsOfExperience Int?             @default(1)
+  createdAt         DateTime         @default(now())
+
+  @@unique([userId, skillId])
+  @@index([userId])
+  @@index([skillId])
+}
+
+model Project {
+  id                   String            @id @default(uuid())
+  slug                 String            @unique
+  ownerId              String
+  owner                User              @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  title                String
+  summary              String
+  description          String
+  category             ProjectCategory   @default(WEB_DEVELOPMENT)
+  visibility           ProjectVisibility @default(PUBLIC)
+  recruitmentStatus    RecruitmentStatus @default(RECRUITING)
+  desiredTeamSize      Int               @default(3)
+  experiencePreference ExperienceLevel   @default(INTERMEDIATE)
+  collaborationType    CollaborationType @default(PERSONAL_PROJECT)
+  expectedDuration     String?
+  bannerImageUrl       String?
+  repoUrl              String?
+  demoUrl              String?
+  startDate            DateTime?
+  targetCompletionDate DateTime?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  skills               ProjectSkill[]
+  members              ProjectMembership[]
+  joinRequests         JoinRequest[]
+  tasks                Task[]
+  milestones           Milestone[]
+  messages             DiscussionMessage[]
+  bookmarks            Bookmark[]
+  activityLogs         ActivityLog[]
+  reports              Report[]
+
+  @@index([slug])
+  @@index([ownerId])
+  @@index([category])
+  @@index([visibility])
+  @@index([recruitmentStatus])
+}
+
+model ProjectSkill {
+  id         String   @id @default(uuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  skillId    String
+  skill      Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  importance String?  @default("REQUIRED")
+  createdAt  DateTime @default(now())
+
+  @@unique([projectId, skillId])
+  @@index([projectId])
+  @@index([skillId])
+}
+
+model ProjectMembership {
+  id        String      @id @default(uuid())
+  projectId String
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      ProjectRole @default(MEMBER)
+  joinedAt  DateTime    @default(now())
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+}
+
+model JoinRequest {
+  id                   String            @id @default(uuid())
+  projectId            String
+  project              Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  applicantId          String
+  applicant            User              @relation("UserApplications", fields: [applicantId], references: [id], onDelete: Cascade)
+  introductoryMessage  String
+  status               ApplicationStatus @default(PENDING)
+  reviewNotes          String?
+  reviewedBy           String?
+  reviewedAt           DateTime?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  @@index([projectId])
+  @@index([applicantId])
+  @@index([status])
+}
+
+model Bookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, projectId])
+  @@index([userId])
+  @@index([projectId])
+}
+
+model Task {
+  id          String       @id @default(uuid())
+  projectId   String
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  creatorId   String
+  creator     User         @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  assigneeId  String?
+  assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  dueDate     DateTime?
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([projectId])
+  @@index([creatorId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([priority])
+}
+
+model Milestone {
+  id          String          @id @default(uuid())
+  projectId   String
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  creatorId   String
+  creator     User            @relation("MilestoneCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  dueDate     DateTime?
+  status      MilestoneStatus @default(UPCOMING)
+  completedAt DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([projectId])
+  @@index([creatorId])
+  @@index([status])
+}
+
+model DiscussionMessage {
+  id        String   @id @default(uuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  message   String
+  isEdited  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actorId    String?
+  actor      User?    @relation("UserActivities", fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String?
+  entityId   String?
+  metadata   String?
+  createdAt  DateTime @default(now())
+
+  @@index([projectId])
+  @@index([actorId])
+  @@index([createdAt])
+}
+
+model Report {
+  id          String       @id @default(uuid())
+  reporterId  String
+  reporter    User         @relation("UserReports", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType  String       @default("PROJECT")
+  projectId   String?
+  project     Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reason      String
+  explanation String?
+  status      ReportStatus @default(PENDING)
+  resolvedBy  String?
+  resolvedAt  DateTime?
+  notes       String?
+  createdAt   DateTime     @default(now())
+
+  @@index([reporterId])
+  @@index([projectId])
+  @@index([status])
+}
+
+model AdminAuditLog {
+  id         String   @id @default(uuid())
+  actorId    String
+  actor      User     @relation("AdminLogs", fields: [actorId], references: [id], onDelete: Cascade)
+  action     String
+  targetType String
+  targetId   String?
+  metadata   String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
