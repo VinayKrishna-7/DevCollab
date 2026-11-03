@@ -6,7 +6,10 @@ export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('devcollab_theme');
     if (saved === 'dark' || saved === 'light') return saved;
-    return 'light';
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+      return 'light';
+    }
+    return 'dark';
   });
 
   useEffect(() => {
